@@ -7,16 +7,13 @@ const { fetchProjects } = require('./fetch');
 const { createProject, createTask } = require('./create');
 const { updateTaskStatus } = require('./update');
 const { deletePage } = require('./delete');
+const { updateProject } = require('./update'); // ✅ Important
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(bodyParser.json());
 
-/**
- * GET /projects
- * Fetch all projects from Notion Projects DB
- */
 app.get('/projects', async (req, res) => {
   try {
     const projects = await fetchProjects();
@@ -27,10 +24,6 @@ app.get('/projects', async (req, res) => {
   }
 });
 
-/**
- * GET /tasks
- * Fetch all tasks from Notion Tasks DB
- */
 app.get('/tasks', async (req, res) => {
   try {
     const response = await notion.databases.query({ database_id: TASKS_DB });
@@ -48,10 +41,6 @@ app.get('/tasks', async (req, res) => {
   }
 });
 
-/**
- * POST /projects
- * Create a new project
- */
 app.post('/projects', async (req, res) => {
   const { name, status, description } = req.body;
   try {
@@ -63,10 +52,6 @@ app.post('/projects', async (req, res) => {
   }
 });
 
-/**
- * POST /tasks
- * Create a new task under a project
- */
 app.post('/tasks', async (req, res) => {
   const { name, projectId, status, priority, due, assignee } = req.body;
   try {
@@ -78,10 +63,6 @@ app.post('/tasks', async (req, res) => {
   }
 });
 
-/**
- * PATCH /tasks/:id/status
- * Update task status
- */
 app.patch('/tasks/:id/status', async (req, res) => {
   const { status } = req.body;
   try {
@@ -93,10 +74,6 @@ app.patch('/tasks/:id/status', async (req, res) => {
   }
 });
 
-/**
- * DELETE /pages/:id
- * Soft-delete (archive) any page
- */
 app.delete('/pages/:id', async (req, res) => {
   try {
     await deletePage(req.params.id);
@@ -107,9 +84,7 @@ app.delete('/pages/:id', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => console.log(`🚀 MAFK API running on port ${PORT}`));
-
-// PATCH /projects/:id → Update Notion project
+// ✅ NEW: PATCH /projects/:id
 app.patch('/projects/:id', async (req, res) => {
   const projectId = req.params.id;
   const { deadline, url, owner, description } = req.body;
@@ -122,3 +97,5 @@ app.patch('/projects/:id', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
+app.listen(PORT, () => console.log(`🚀 MAFK API running on port ${PORT}`));

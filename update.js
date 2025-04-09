@@ -45,4 +45,6 @@ async function updateProject(id, { deadline, url, owner, description }) {
   });
 }
 
-module.exports = updateProject;
+module.exports = {
+  updateProject
+};
