@@ -1,51 +1,34 @@
 const { notion, PROJECTS_DB, TASKS_DB } = require('./notion');
 
 /**
- * Create a new project in Notion
- * - Title property is 'Project name'
- * - Status is of type 'status'
+ * Create a project with updated Notion schema
  */
-async function createProject(name, status = 'Planning') {
-  try {
-    const response = await notion.pages.create({
-      parent: { database_id: PROJECTS_DB },
-      properties: {
-        'Project name': { title: [{ text: { content: name } }] },  // ✅ exact title field
-        Status: { status: { name: status } },                      // ✅ using "status" type correctly
-      },
-    });
-    console.log(`✅ Created project: ${name}`);
-    return response;
-  } catch (error) {
-    console.error('❌ Failed to create project:', error.message);
-    throw error;
-  }
+async function createProject(name, status = 'Planning', description = '') {
+  return await notion.pages.create({
+    parent: { database_id: PROJECTS_DB },
+    properties: {
+      'Project name': { title: [{ text: { content: name } }] },
+      Status: { status: { name: status } },
+      Description: { rich_text: [{ text: { content: description } }] }
+    }
+  });
 }
 
 /**
- * Create a new task in Notion, linked to a project
- * - Title property is 'Task name'
- * - Status is of type 'status'
- * - Project is a relation field
+ * Create a task with updated Notion schema
  */
-async function createTask(name, projectId, status = 'Not Started') {
-  try {
-    const response = await notion.pages.create({
-      parent: { database_id: TASKS_DB },
-      properties: {
-        'Task name': { title: [{ text: { content: name } }] },     // ✅ exact title field
-        Status: { status: { name: status } },                      // ✅ using "status" type correctly
-        Project: {
-          relation: [{ id: projectId }],
-        },
-      },
-    });
-    console.log(`✅ Created task: ${name}`);
-    return response;
-  } catch (error) {
-    console.error('❌ Failed to create task:', error.message);
-    throw error;
-  }
+async function createTask(name, projectId, status = 'Not Started', assignee = [], priority = 'Medium', due = null) {
+  return await notion.pages.create({
+    parent: { database_id: TASKS_DB },
+    properties: {
+      'Task name': { title: [{ text: { content: name } }] },
+      Status: { status: { name: status } },
+      Project: { relation: [{ id: projectId }] },
+      Assignee: { people: assignee.map(id => ({ id })) },
+      Priority: { select: { name: priority } },
+      Due: due ? { date: { start: due } } : undefined
+    }
+  });
 }
 
 module.exports = { createProject, createTask };
