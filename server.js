@@ -108,3 +108,17 @@ app.delete('/pages/:id', async (req, res) => {
 });
 
 app.listen(PORT, () => console.log(`🚀 MAFK API running on port ${PORT}`));
+
+// PATCH /projects/:id → Update Notion project
+app.patch('/projects/:id', async (req, res) => {
+  const projectId = req.params.id;
+  const { deadline, url, owner, description } = req.body;
+
+  try {
+    const updated = await updateProject(projectId, { deadline, url, owner, description });
+    res.status(200).json({ message: 'Project updated', updated });
+  } catch (error) {
+    console.error('❌ Error updating project:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
