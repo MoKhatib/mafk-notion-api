@@ -33,7 +33,7 @@ app.get('/tasks', async (req, res) => {
   }
 });
 
-// ✅ Fetch all tasks under a specific project
+// ✅ Fetch tasks for a project
 app.get('/projects/:id/tasks', async (req, res) => {
   const projectId = req.params.id;
   try {
@@ -41,67 +41,196 @@ app.get('/projects/:id/tasks', async (req, res) => {
       database_id: TASKS_DB,
       filter: {
         property: 'Project',
-        relation: {
-          contains: projectId
-        }
+        relation: { contains: projectId }
       }
     });
+
     const tasks = response.results.map(task => ({
       id: task.id,
-      name: task.properties.Name?.title?.[0]?.plain_text || '',
+      name: task.properties['Task name']?.title?.[0]?.plain_text || '',
       status: task.properties.Status?.status?.name || '',
       priority: task.properties.Priority?.select?.name || '',
       due: task.properties.Due?.date?.start || '',
       assignee: task.properties.Assignee?.people?.map(p => p.name) || []
     }));
+
     res.json(tasks);
   } catch (error) {
     res.status(500).json({ error: 'Could not retrieve tasks for this project' });
   }
 });
 
-// ✅ Get all tasks due this week
-app.get('/tasks/this-week', async (req, res) => {
-  const today = new Date();
-  const endOfWeek = new Date();
-  endOfWeek.setDate(today.getDate() + 7);
-
+// ✅ Get project schedule
+app.get('/projects/:id/schedule', async (req, res) => {
+  const projectId = req.params.id;
   try {
     const response = await notion.databases.query({
       database_id: TASKS_DB,
       filter: {
-        and: [
-          {
-            property: 'Due',
-            date: {
-              on_or_after: today.toISOString().split('T')[0]
-            }
-          },
-          {
-            property: 'Due',
-            date: {
-              on_or_before: endOfWeek.toISOString().split('T')[0]
-            }
-          }
-        ]
+        property: 'Project',
+        relation: { contains: projectId }
       }
     });
 
     const tasks = response.results.map(task => ({
       id: task.id,
-      name: task.properties.Name?.title?.[0]?.plain_text || '',
-      due: task.properties.Due?.date?.start || '',
-      project: task.properties.Project?.relation?.[0]?.id || '',
-      status: task.properties.Status?.status?.name || ''
+      name: task.properties['Task name']?.title?.[0]?.plain_text || '',
+      due: task.properties.Due?.date?.start || null,
+      status: task.properties.Status?.status?.name || 'Unknown'
     }));
 
-    res.json(tasks);
+    const sorted = tasks.sort((a, b) => {
+      if (!a.due) return 1;
+      if (!b.due) return -1;
+      return new Date(a.due) - new Date(b.due);
+    });
+
+    res.json(sorted);
   } catch (error) {
-    res.status(500).json({ error: 'Could not retrieve tasks for this week' });
+    res.status(500).json({ error: 'Failed to generate project schedule' });
   }
 });
 
-// 🔹 Create a new project
+// ✅ Get overdue tasks
+app.get('/tasks/overdue', async (req, res) => {
+  const today = new Date().toISOString().split('T')[0];
+  try {
+    const response = await notion.databases.query({
+      database_id: TASKS_DB,
+      filter: {
+        and: [
+          { property: 'Due', date: { before: today } },
+          { property: 'Status', status: { does_not_equal: 'Done' } }
+        ]
+      }
+    });
+
+    const overdue = response.results.map(task => ({
+      id: task.id,
+      name: task.properties['Task name']?.title?.[0]?.plain_text || '',
+      due: task.properties.Due?.date?.start || '',
+      status: task.properties.Status?.status?.name || '',
+      project: task.properties.Project?.relation?.[0]?.id || '',
+      priority: task.properties.Priority?.select?.name || ''
+    }));
+
+    res.json(overdue);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to retrieve overdue tasks' });
+  }
+});
+
+// ✅ Embed full creative dashboard
+app.post('/projects/:id/embed-dashboard', async (req, res) => {
+  const { summary, goals, ideas, planning, rituals, prompts } = req.body;
+  const projectId = req.params.id;
+  const children = [];
+
+  const createToggle = (title, content) => ({
+    object: 'block',
+    type: 'toggle',
+    toggle: {
+      rich_text: [{ type: 'text', text: { content: title } }],
+      children: [{
+        object: 'block',
+        type: 'paragraph',
+        paragraph: {
+          rich_text: [{ type: 'text', text: { content } }]
+        }
+      }]
+    }
+  });
+
+  if (summary) children.push(createToggle('📄 Project Summary', summary));
+  if (goals) children.push(createToggle('🎯 Goals & Objectives', goals));
+  if (ideas) children.push(createToggle('💡 Creative Concepts', ideas));
+  if (planning) children.push(createToggle('🔧 Planning the Project', planning));
+  if (rituals) children.push(createToggle('🧪 Sprint Rituals', rituals));
+  if (prompts) children.push(createToggle('🪄 AI Prompts / Experiments', prompts));
+
+  try {
+    await notion.blocks.children.append({ block_id: projectId, children });
+    res.json({ inserted: children.length });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to embed creative dashboard' });
+  }
+});
+
+// ✅ Embed brief inside task
+app.post('/tasks/:id/brief', async (req, res) => {
+  const { brief } = req.body;
+  const taskId = req.params.id;
+
+  if (!brief) return res.status(400).json({ error: 'Missing `brief` content.' });
+
+  const block = {
+    object: 'block',
+    type: 'toggle',
+    toggle: {
+      rich_text: [{ type: 'text', text: { content: '📝 Creative Brief' } }],
+      children: [{
+        object: 'block',
+        type: 'paragraph',
+        paragraph: {
+          rich_text: [{ type: 'text', text: { content: brief } }]
+        }
+      }]
+    }
+  };
+
+  try {
+    await notion.blocks.children.append({
+      block_id: taskId,
+      children: [block]
+    });
+
+    res.json({ inserted: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to embed creative brief' });
+  }
+});
+
+// ✅ Detect duplicate toggle blocks in a project
+app.post('/projects/:id/clean-blocks', async (req, res) => {
+  const projectId = req.params.id;
+
+  try {
+    const response = await notion.blocks.children.list({
+      block_id: projectId,
+      page_size: 100
+    });
+
+    const toggleBlocks = response.results.filter(block =>
+      block.type === 'toggle' && block.toggle?.rich_text?.[0]?.text?.content
+    );
+
+    const seen = {};
+    const duplicates = [];
+
+    for (let block of toggleBlocks) {
+      const title = block.toggle.rich_text[0].text.content.trim();
+      if (seen[title]) {
+        duplicates.push({
+          block_id: block.id,
+          title,
+          created_time: block.created_time
+        });
+      } else {
+        seen[title] = block.id;
+      }
+    }
+
+    res.json({
+      message: 'Duplicate toggles detected',
+      total_duplicates: duplicates.length,
+      duplicates
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to check blocks for duplicates' });
+  }
+});
+
+// 🔹 Create new project
 app.post('/projects', async (req, res) => {
   const { name, status, description } = req.body;
   try {
@@ -112,7 +241,7 @@ app.post('/projects', async (req, res) => {
   }
 });
 
-// 🔹 Create a new task
+// 🔹 Create new task (prompt-enhanced logic lives in create.js)
 app.post('/tasks', async (req, res) => {
   const { name, projectId, status, priority, due, assignee } = req.body;
   try {
@@ -133,87 +262,20 @@ app.patch('/tasks/:id/status', async (req, res) => {
   }
 });
 
-// ✅ Update full project metadata
+// 🔹 Update project
 app.patch('/projects/:id', async (req, res) => {
   const { description, deadline, url, owner, status, client } = req.body;
   try {
-    const updated = await updateProject(req.params.id, { description, deadline, url, owner, status, client });
+    const updated = await updateProject(req.params.id, {
+      description, deadline, url, owner, status, client
+    });
     res.json({ updated });
   } catch (error) {
     res.status(500).json({ error: 'Failed to update project' });
   }
 });
 
-// ✅ Embed content block inside Notion page
-app.post('/projects/:id/embed-summary', async (req, res) => {
-  const { summary, goals, ideas } = req.body;
-  const projectId = req.params.id;
-  const children = [];
-
-  if (summary) {
-    children.push({
-      object: 'block',
-      type: 'toggle',
-      toggle: {
-        rich_text: [{ type: 'text', text: { content: '📄 Project Summary' } }],
-        children: [{
-          object: 'block',
-          type: 'paragraph',
-          paragraph: {
-            rich_text: [{ type: 'text', text: { content: summary } }]
-          }
-        }]
-      }
-    });
-  }
-
-  if (goals) {
-    children.push({
-      object: 'block',
-      type: 'toggle',
-      toggle: {
-        rich_text: [{ type: 'text', text: { content: '🎯 Goals & Objectives' } }],
-        children: [{
-          object: 'block',
-          type: 'paragraph',
-          paragraph: {
-            rich_text: [{ type: 'text', text: { content: goals } }]
-          }
-        }]
-      }
-    });
-  }
-
-  if (ideas) {
-    children.push({
-      object: 'block',
-      type: 'toggle',
-      toggle: {
-        rich_text: [{ type: 'text', text: { content: '💡 Creative Concepts' } }],
-        children: [{
-          object: 'block',
-          type: 'paragraph',
-          paragraph: {
-            rich_text: [{ type: 'text', text: { content: ideas } }]
-          }
-        }]
-      }
-    });
-  }
-
-  try {
-    const response = await notion.blocks.children.append({
-      block_id: projectId,
-      children
-    });
-
-    res.json({ inserted: children.length });
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to embed content block' });
-  }
-});
-
-// 🔹 Archive (soft delete) a page
+// 🔹 Archive project or task page
 app.delete('/pages/:id', async (req, res) => {
   try {
     await deletePage(req.params.id);
