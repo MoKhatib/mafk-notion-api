@@ -13,8 +13,19 @@ const PORT = process.env.PORT || 3000;
 
 app.use(bodyParser.json());
 
-// 🧾 Notion Database ID for Visual References
-const VISUAL_DB = '1d1dbda8f07f806eaf99ff83c4a87842';
+// 🔁 Retry helper for Notion API calls
+async function withRetry(fn, attempts = 2, delay = 1000) {
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await fn();
+    } catch (e) {
+      if (i === attempts - 1) throw e;
+      await new Promise(res => setTimeout(res, delay));
+    }
+  }
+}
+
+const VISUAL_DB = '1d1dbda8f07f806eaf99ff83c4a87842'; // Visual Reference Gallery
 
 // 🔹 Fetch all projects
 app.get('/projects', async (req, res) => {
@@ -36,7 +47,7 @@ app.get('/tasks', async (req, res) => {
   }
 });
 
-// ✅ Fetch all tasks under a project
+// ✅ Fetch tasks under a project
 app.get('/projects/:id/tasks', async (req, res) => {
   const projectId = req.params.id;
   try {
@@ -63,9 +74,10 @@ app.get('/projects/:id/tasks', async (req, res) => {
   }
 });
 
-// ✅ Project timeline
+// ✅ Project sprint timeline
 app.get('/projects/:id/schedule', async (req, res) => {
   const projectId = req.params.id;
+
   try {
     const response = await notion.databases.query({
       database_id: TASKS_DB,
@@ -82,19 +94,24 @@ app.get('/projects/:id/schedule', async (req, res) => {
       status: task.properties.Status?.status?.name || 'Unknown'
     }));
 
-    const sorted = tasks.sort((a, b) => {
-      if (!a.due) return 1;
-      if (!b.due) return -1;
-      return new Date(a.due) - new Date(b.due);
-    });
+    const scheduled = tasks.filter(t => !!t.due);
+    const unscheduled = tasks.filter(t => !t.due);
 
-    res.json(sorted);
+    const sorted = scheduled.sort((a, b) =>
+      new Date(a.due) - new Date(b.due)
+    );
+
+    res.json({
+      scheduled: sorted,
+      unscheduled: unscheduled,
+      total: tasks.length
+    });
   } catch (error) {
     res.status(500).json({ error: 'Failed to generate project schedule' });
   }
 });
 
-// ✅ Overdue tasks
+// ✅ Overdue task filter
 app.get('/tasks/overdue', async (req, res) => {
   const today = new Date().toISOString().split('T')[0];
   try {
@@ -152,14 +169,16 @@ app.post('/projects/:id/embed-dashboard', async (req, res) => {
   if (prompts) children.push(createToggle('🪄 AI Prompts / Experiments', prompts));
 
   try {
-    await notion.blocks.children.append({ block_id: projectId, children });
+    await withRetry(() =>
+      notion.blocks.children.append({ block_id: projectId, children })
+    );
     res.json({ inserted: children.length });
   } catch (error) {
     res.status(500).json({ error: 'Failed to embed creative dashboard' });
   }
 });
 
-// ✅ Inject brief into task
+// ✅ Embed task-level creative brief
 app.post('/tasks/:id/brief', async (req, res) => {
   const { brief } = req.body;
   const taskId = req.params.id;
@@ -182,10 +201,12 @@ app.post('/tasks/:id/brief', async (req, res) => {
   };
 
   try {
-    await notion.blocks.children.append({
-      block_id: taskId,
-      children: [block]
-    });
+    await withRetry(() =>
+      notion.blocks.children.append({
+        block_id: taskId,
+        children: [block]
+      })
+    );
 
     res.json({ inserted: true });
   } catch (error) {
@@ -193,7 +214,7 @@ app.post('/tasks/:id/brief', async (req, res) => {
   }
 });
 
-// ✅ Detect duplicate toggle blocks
+// ✅ Duplicate toggle detector
 app.post('/projects/:id/clean-blocks', async (req, res) => {
   const projectId = req.params.id;
 
@@ -213,21 +234,13 @@ app.post('/projects/:id/clean-blocks', async (req, res) => {
     for (let block of toggleBlocks) {
       const title = block.toggle.rich_text[0].text.content.trim();
       if (seen[title]) {
-        duplicates.push({
-          block_id: block.id,
-          title,
-          created_time: block.created_time
-        });
+        duplicates.push({ block_id: block.id, title, created_time: block.created_time });
       } else {
         seen[title] = block.id;
       }
     }
 
-    res.json({
-      message: 'Duplicate toggles detected',
-      total_duplicates: duplicates.length,
-      duplicates
-    });
+    res.json({ message: 'Duplicate toggles detected', total_duplicates: duplicates.length, duplicates });
   } catch (error) {
     res.status(500).json({ error: 'Failed to check blocks for duplicates' });
   }
@@ -261,7 +274,7 @@ app.get('/projects/:id/visual-references', async (req, res) => {
   }
 });
 
-// 🔹 Create new project
+// 🔹 Create a new project
 app.post('/projects', async (req, res) => {
   const { name, status, description } = req.body;
   try {
@@ -272,7 +285,7 @@ app.post('/projects', async (req, res) => {
   }
 });
 
-// 🔹 Create new task
+// 🔹 Create a new task
 app.post('/tasks', async (req, res) => {
   const { name, projectId, status, priority, due, assignee } = req.body;
   try {
@@ -293,20 +306,18 @@ app.patch('/tasks/:id/status', async (req, res) => {
   }
 });
 
-// 🔹 Update project
+// 🔹 Update a project
 app.patch('/projects/:id', async (req, res) => {
   const { description, deadline, url, owner, status, client } = req.body;
   try {
-    const updated = await updateProject(req.params.id, {
-      description, deadline, url, owner, status, client
-    });
+    const updated = await updateProject(req.params.id, { description, deadline, url, owner, status, client });
     res.json({ updated });
   } catch (error) {
     res.status(500).json({ error: 'Failed to update project' });
   }
 });
 
-// 🔹 Archive
+// 🔹 Soft-delete
 app.delete('/pages/:id', async (req, res) => {
   try {
     await deletePage(req.params.id);
