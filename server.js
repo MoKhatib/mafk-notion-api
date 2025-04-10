@@ -13,6 +13,9 @@ const PORT = process.env.PORT || 3000;
 
 app.use(bodyParser.json());
 
+// 🧾 Notion Database ID for Visual References
+const VISUAL_DB = '1d1dbda8f07f806eaf99ff83c4a87842';
+
 // 🔹 Fetch all projects
 app.get('/projects', async (req, res) => {
   try {
@@ -33,7 +36,7 @@ app.get('/tasks', async (req, res) => {
   }
 });
 
-// ✅ Fetch tasks for a project
+// ✅ Fetch all tasks under a project
 app.get('/projects/:id/tasks', async (req, res) => {
   const projectId = req.params.id;
   try {
@@ -60,7 +63,7 @@ app.get('/projects/:id/tasks', async (req, res) => {
   }
 });
 
-// ✅ Get project schedule
+// ✅ Project timeline
 app.get('/projects/:id/schedule', async (req, res) => {
   const projectId = req.params.id;
   try {
@@ -91,7 +94,7 @@ app.get('/projects/:id/schedule', async (req, res) => {
   }
 });
 
-// ✅ Get overdue tasks
+// ✅ Overdue tasks
 app.get('/tasks/overdue', async (req, res) => {
   const today = new Date().toISOString().split('T')[0];
   try {
@@ -156,7 +159,7 @@ app.post('/projects/:id/embed-dashboard', async (req, res) => {
   }
 });
 
-// ✅ Embed brief inside task
+// ✅ Inject brief into task
 app.post('/tasks/:id/brief', async (req, res) => {
   const { brief } = req.body;
   const taskId = req.params.id;
@@ -190,7 +193,7 @@ app.post('/tasks/:id/brief', async (req, res) => {
   }
 });
 
-// ✅ Detect duplicate toggle blocks in a project
+// ✅ Detect duplicate toggle blocks
 app.post('/projects/:id/clean-blocks', async (req, res) => {
   const projectId = req.params.id;
 
@@ -230,6 +233,34 @@ app.post('/projects/:id/clean-blocks', async (req, res) => {
   }
 });
 
+// ✅ Fetch visual references for a project
+app.get('/projects/:id/visual-references', async (req, res) => {
+  const projectId = req.params.id;
+
+  try {
+    const response = await notion.databases.query({
+      database_id: VISUAL_DB,
+      filter: {
+        property: 'Project',
+        relation: { contains: projectId }
+      }
+    });
+
+    const visuals = response.results.map(v => ({
+      id: v.id,
+      title: v.properties.Name?.title?.[0]?.plain_text || '',
+      image: v.properties.Image?.files?.[0]?.file?.url || null,
+      tags: v.properties.Tags?.multi_select?.map(tag => tag.name) || [],
+      source: v.properties['Source Link']?.url || null,
+      promptIdeas: v.properties['Prompt Ideas']?.rich_text?.[0]?.plain_text || ''
+    }));
+
+    res.json(visuals);
+  } catch (error) {
+    res.status(500).json({ error: 'Unable to fetch visuals for project' });
+  }
+});
+
 // 🔹 Create new project
 app.post('/projects', async (req, res) => {
   const { name, status, description } = req.body;
@@ -241,7 +272,7 @@ app.post('/projects', async (req, res) => {
   }
 });
 
-// 🔹 Create new task (prompt-enhanced logic lives in create.js)
+// 🔹 Create new task
 app.post('/tasks', async (req, res) => {
   const { name, projectId, status, priority, due, assignee } = req.body;
   try {
@@ -275,7 +306,7 @@ app.patch('/projects/:id', async (req, res) => {
   }
 });
 
-// 🔹 Archive project or task page
+// 🔹 Archive
 app.delete('/pages/:id', async (req, res) => {
   try {
     await deletePage(req.params.id);
