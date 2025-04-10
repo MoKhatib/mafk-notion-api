@@ -1,18 +1,6 @@
-const { notion, TASKS_DB, PROJECTS_DB } = require('./notion');
+const { notion, withRetry } = require('./notion');
 
-// ✅ Retry helper (can also be moved to utils.js if used elsewhere)
-async function withRetry(fn, attempts = 2, delay = 1000) {
-  for (let i = 0; i < attempts; i++) {
-    try {
-      return await fn();
-    } catch (error) {
-      if (i === attempts - 1) throw error;
-      await new Promise((res) => setTimeout(res, delay));
-    }
-  }
-}
-
-// ✅ Update project metadata
+// ✅ Update Project Metadata
 async function updateProject(projectId, updates) {
   const properties = {};
 
@@ -27,7 +15,9 @@ async function updateProject(projectId, updates) {
   }
 
   if (updates.deadline) {
-    properties.Deadline = { date: { start: updates.deadline } };
+    properties.Deadline = {
+      date: { start: updates.deadline }
+    };
   }
 
   if (updates.url) {
@@ -35,11 +25,15 @@ async function updateProject(projectId, updates) {
   }
 
   if (updates.owner) {
-    properties.Owner = { people: [{ id: updates.owner }] };
+    properties.Owner = {
+      people: [{ id: updates.owner }]
+    };
   }
 
   if (updates.client) {
-    properties.Client = { select: { name: updates.client } };
+    properties.Client = {
+      select: { name: updates.client }
+    };
   }
 
   return await withRetry(() =>
@@ -50,7 +44,7 @@ async function updateProject(projectId, updates) {
   );
 }
 
-// ✅ Update full task metadata
+// ✅ Update Full Task Metadata
 async function updateTask(taskId, updates) {
   const properties = {};
 
@@ -69,12 +63,14 @@ async function updateTask(taskId, updates) {
   }
 
   if (updates.due) {
-    properties.Due = { date: { start: updates.due } };
+    properties.Due = {
+      date: { start: updates.due }
+    };
   }
 
-  if (updates.assignee) {
+  if (updates.assignee && updates.assignee.length > 0) {
     properties.Assignee = {
-      people: updates.assignee.map((id) => ({ id }))
+      people: updates.assignee.map(id => ({ id }))
     };
   }
 
@@ -86,7 +82,7 @@ async function updateTask(taskId, updates) {
   );
 }
 
-// ✅ Update task status only
+// ✅ Update Task Status Only
 async function updateTaskStatus(taskId, status) {
   return await withRetry(() =>
     notion.pages.update({

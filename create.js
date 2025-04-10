@@ -1,30 +1,24 @@
-const { notion, PROJECTS_DB, TASKS_DB } = require('./notion');
+const { notion, PROJECTS_DB, TASKS_DB, MOODBOARD_TEMPLATE, withRetry } = require('./notion');
 
-async function withRetry(fn, attempts = 2, delay = 1000) {
-  for (let i = 0; i < attempts; i++) {
-    try {
-      return await fn();
-    } catch (err) {
-      if (i === attempts - 1) throw err;
-      await new Promise((res) => setTimeout(res, delay));
-    }
-  }
-}
+// ✅ Set this to your actual Notion User ID for auto-owner assignment
+const DEFAULT_OWNER_ID = 'your-notion-user-id-here'; // Replace with your Notion ID
 
-async function createProject(name, status = 'Planning', description = '') {
+// ✅ Create a new project and embed mood board
+async function createProject(name, status = 'Planning', description = '', client = 'Unassigned') {
   const newPage = await withRetry(() =>
     notion.pages.create({
       parent: { database_id: PROJECTS_DB },
       properties: {
         'Project name': { title: [{ text: { content: name } }] },
         Status: { status: { name: status } },
-        Description: { rich_text: [{ text: { content: description } }] }
+        Description: { rich_text: [{ text: { content: description } }] },
+        Client: { select: { name: client || 'Unassigned' } },
+        Owner: { people: [{ id: DEFAULT_OWNER_ID }] }
       }
     })
   );
 
-  const templatePageId = '1cfdbda8f07f8027815ce64b448044f6'; // Mood Board template
-
+  // Embed the Mood Board toggle block with linked template and description
   try {
     await notion.blocks.children.append({
       block_id: newPage.id,
@@ -42,7 +36,7 @@ async function createProject(name, status = 'Planning', description = '') {
                 type: 'link_to_page',
                 link_to_page: {
                   type: 'page_id',
-                  page_id: templatePageId
+                  page_id: MOODBOARD_TEMPLATE
                 }
               },
               {
@@ -54,7 +48,7 @@ async function createProject(name, status = 'Planning', description = '') {
                       type: 'text',
                       text: {
                         content:
-                          'Start dragging images here to collect visual inspiration for this project. You can duplicate this Mood Board if you’d like a custom version.'
+                          'Drag images into this Mood Board to collect inspiration. You can duplicate it if you’d like a custom version.'
                       }
                     }
                   ]
@@ -66,26 +60,40 @@ async function createProject(name, status = 'Planning', description = '') {
       ]
     });
   } catch (err) {
-    console.error('❌ Failed to embed mood board:', err.message);
+    console.error('❌ Failed to embed mood board toggle:', err.message);
   }
 
   return newPage;
 }
 
+// ✅ Create a task under a project
 async function createTask(name, projectId, status = 'Not Started', assignee = [], priority = 'Medium', due = null) {
+  const taskProps = {
+    'Task name': { title: [{ text: { content: name } }] },
+    Status: { status: { name: status } },
+    Project: { relation: [{ id: projectId }] },
+    Priority: { select: { name: priority } }
+  };
+
+  if (assignee.length) {
+    taskProps.Assignee = {
+      people: assignee.map(id => ({ id }))
+    };
+  }
+
+  if (due) {
+    taskProps.Due = { date: { start: due } };
+  }
+
   return await withRetry(() =>
     notion.pages.create({
       parent: { database_id: TASKS_DB },
-      properties: {
-        'Task name': { title: [{ text: { content: name } }] },
-        Status: { status: { name: status } },
-        Project: { relation: [{ id: projectId }] },
-        Assignee: { people: assignee.map(id => ({ id })) },
-        Priority: { select: { name: priority } },
-        Due: due ? { date: { start: due } } : undefined
-      }
+      properties: taskProps
     })
   );
 }
 
-module.exports = { createProject, createTask };
+module.exports = {
+  createProject,
+  createTask
+};
