@@ -1,5 +1,5 @@
 // utils/withRetry.js
-export async function withRetry(fn, retries = 3, delay = 500) {
+export default async function withRetry(fn, retries = 3, delay = 500) {
   let lastError;
 
   for (let i = 0; i < retries; i++) {

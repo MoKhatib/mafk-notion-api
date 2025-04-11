@@ -1,7 +1,8 @@
 openapi: 3.1.0
 info:
   title: "MAFK Notion API"
-  version: "4.0"
+  version: "4.1"
+  description: "Creative orchestration API powering MAFK’s intelligent Notion system"
 
 servers:
   - url: "https://mafk-notion-api.onrender.com"
@@ -35,22 +36,27 @@ paths:
               properties:
                 Project name:
                   type: string
+                  description: "Title of the project"
                 Status:
                   type: string
+                  description: "Project status (e.g. Planning, In Progress)"
                 Client:
                   type: array
                   items:
                     type: string
+                  description: "Client tags (must match Notion select values)"
                 Description:
                   type: string
                 Owner:
                   type: string
+                  description: "User ID of the project owner"
                 Deadline:
                   type: string
                   format: date
+
       responses:
         "200":
-          description: "Project created"
+          description: "Project created successfully"
 
   /projects/{id}:
     patch:
@@ -83,11 +89,11 @@ paths:
                     type: string
       responses:
         "200":
-          description: "Project updated"
+          description: "Project updated successfully"
 
   /projects/{id}/generate-sprint-from-goal:
     post:
-      summary: "Generate sprint tasks from a creative goal using GPT"
+      summary: "Generate sprint tasks from a creative goal"
       operationId: generateSprintFromGoal
       parameters:
         - name: id
@@ -107,11 +113,11 @@ paths:
                   type: string
       responses:
         "200":
-          description: "Sprint tasks generated and injected"
+          description: "Sprint tasks generated"
 
   /projects/{id}/sprint:
     post:
-      summary: "Create a sprint with tasks, brief, and auto-categorization"
+      summary: "Create a sprint"
       operationId: createSprint
       parameters:
         - name: id
@@ -142,7 +148,7 @@ paths:
 
   /projects/{id}/daily-reflection:
     post:
-      summary: "Insert a reflection toggle with open + overdue task stats"
+      summary: "Insert daily reflection toggle"
       operationId: insertDailyReflection
       parameters:
         - name: id
@@ -154,23 +160,9 @@ paths:
         "200":
           description: "Reflection block created"
 
-  /pages/{id}/caption-images:
-    post:
-      summary: "Caption all image blocks in a page using GPT"
-      operationId: captionImages
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        "200":
-          description: "Image captions added"
-
   /projects/{id}/embed-summary:
     post:
-      summary: "Embed a project summary block"
+      summary: "Embed project summary block"
       operationId: embedProjectSummary
       parameters:
         - name: id
@@ -196,7 +188,7 @@ paths:
 
   /projects/{id}/embed-dashboard:
     post:
-      summary: "Embed full creative dashboard"
+      summary: "Embed creative dashboard"
       operationId: embedProjectDashboard
       parameters:
         - name: id
@@ -228,7 +220,7 @@ paths:
 
   /projects/{id}/embed-moodboard:
     post:
-      summary: "Embed moodboard block with visuals"
+      summary: "Embed moodboard block"
       operationId: embedMoodboard
       parameters:
         - name: id
@@ -273,7 +265,7 @@ paths:
 
   /projects/{id}/visual-references:
     get:
-      summary: "Get all visual references linked to a project"
+      summary: "Get all visual references for a project"
       operationId: getProjectVisuals
       parameters:
         - name: id
@@ -283,7 +275,7 @@ paths:
             type: string
       responses:
         "200":
-          description: "Visuals returned"
+          description: "Visuals retrieved"
 
   /tasks:
     get:
@@ -291,7 +283,7 @@ paths:
       operationId: getTasks
       responses:
         "200":
-          description: "Returns all tasks"
+          description: "All tasks listed"
 
     post:
       summary: "Create a new task"
@@ -323,7 +315,7 @@ paths:
 
   /tasks/{id}:
     patch:
-      summary: "Update full task metadata"
+      summary: "Update task metadata"
       operationId: updateTask
       parameters:
         - name: id
@@ -378,7 +370,7 @@ paths:
 
   /tasks/{id}/brief:
     post:
-      summary: "Embed creative brief into task"
+      summary: "Embed a creative brief in task"
       operationId: embedTaskBrief
       parameters:
         - name: id
@@ -405,7 +397,7 @@ paths:
       operationId: getTasksThisWeek
       responses:
         "200":
-          description: "This week’s tasks returned"
+          description: "Weekly tasks returned"
 
   /tasks/overdue:
     get:
@@ -429,9 +421,23 @@ paths:
         "200":
           description: "Page archived"
 
+  /pages/{id}/caption-images:
+    post:
+      summary: "Caption images in page"
+      operationId: captionImages
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: "Captions added"
+
   /visuals/{id}/tag-project:
     post:
-      summary: "Tag a visual reference to a project"
+      summary: "Tag a visual to a project"
       operationId: tagVisualToProject
       parameters:
         - name: id

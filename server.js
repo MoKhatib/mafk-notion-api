@@ -1,9 +1,8 @@
-import { withRetry } from './utils/withRetry.js';
 import express from "express";
 import dotenv from "dotenv";
 import cors from "cors";
 import { Client } from "@notionhq/client";
-import withRetry from "./utils/withRetry.js";
+import withRetry from "./utils/withRetry.js"; // ✅ Only import once
 
 dotenv.config();
 
@@ -18,12 +17,15 @@ const {
   DEFAULT_OWNER_ID,
 } = process.env;
 
-// Helper to build Notion person object
-const asPeople = (userId) => [{
-  object: "user",
-  id: userId,
-}];
+// Helper: Wrap user ID in Notion format
+const asPeople = (userId) => [
+  {
+    object: "user",
+    id: userId,
+  },
+];
 
+// ✅ POST /projects → Create a new Notion project
 app.post("/projects", async (req, res) => {
   try {
     const { name, status, description, client } = req.body;
@@ -36,11 +38,11 @@ app.post("/projects", async (req, res) => {
       notion.pages.create({
         parent: { database_id: PROJECTS_DB },
         properties: {
-          Name: {
+          "Project name": {
             title: [{ type: "text", text: { content: name } }],
           },
           Status: {
-            select: { name: status || "Planning" },
+            status: { name: status || "Planning" },
           },
           Description: description
             ? {
@@ -48,7 +50,7 @@ app.post("/projects", async (req, res) => {
               }
             : undefined,
           Client: {
-            select: { name: client || "Unassigned" },
+            multi_select: [{ name: client || "Unassigned" }],
           },
           Owner: {
             people: asPeople(DEFAULT_OWNER_ID),
@@ -64,11 +66,13 @@ app.post("/projects", async (req, res) => {
   }
 });
 
+// ✅ Root test endpoint
 app.get("/", (req, res) => {
-  res.send("MAFK API is alive.");
+  res.send("MAFK Notion API is running ⚙️");
 });
 
+// ✅ Start server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`MAFK API listening on port ${PORT}`);
+  console.log(`🚀 MAFK Notion API listening on port ${PORT}`);
 });
