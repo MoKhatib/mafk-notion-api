@@ -1,19 +1,36 @@
 const { Client } = require('@notionhq/client');
+const { withRetry } = require('./utils'); // ✅ for retry logic
 require('dotenv').config();
 
 const notion = new Client({ auth: process.env.NOTION_TOKEN });
 const databaseId = process.env.PROJECTS_DB;
 const defaultOwnerId = process.env.DEFAULT_OWNER_ID;
 
-// Get all projects
+// ✅ Get all projects (FIXED: uses created_time sort)
 async function getAllProjects() {
-  const response = await notion.databases.query({
-    database_id: databaseId,
-  });
-  return response.results;
+  const response = await withRetry(() =>
+    notion.databases.query({
+      database_id: databaseId,
+      sorts: [
+        {
+          timestamp: 'created_time', // ✅ FIX: replaces invalid 'Created' property
+          direction: 'descending',
+        },
+      ],
+    })
+  );
+
+  return response.results.map(page => ({
+    id: page.id,
+    name:
+      page.properties['Project name']?.title?.[0]?.plain_text ||
+      page.properties.Name?.title?.[0]?.plain_text ||
+      'Untitled',
+    status: page.properties.Status?.status?.name || 'Unknown',
+  }));
 }
 
-// Create a new project
+// ✅ Create a new project
 async function createProject({ name, status, description, client }) {
   const response = await notion.pages.create({
     parent: { database_id: databaseId },
@@ -61,7 +78,7 @@ async function createProject({ name, status, description, client }) {
   return response;
 }
 
-// Embed dashboard properties into an existing project page
+// ✅ Embed dashboard into a project
 async function embedDashboard(projectId, { summary, goals, ideas, planning, rituals, prompts }) {
   const response = await notion.pages.update({
     page_id: projectId,
