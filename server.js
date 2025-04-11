@@ -6,6 +6,7 @@ app.use(express.json());
 
 const notion = new Client({ auth: process.env.NOTION_TOKEN });
 
+// 🔁 Retry Wrapper
 async function withRetry(fn, retries = 3) {
   let lastError;
   for (let i = 0; i < retries; i++) {
@@ -18,7 +19,7 @@ async function withRetry(fn, retries = 3) {
   throw lastError;
 }
 
-// CREATE PROJECT
+// ✅ CREATE PROJECT
 app.post('/projects', async (req, res) => {
   const { name, status, description, client } = req.body;
 
@@ -71,13 +72,18 @@ app.post('/projects', async (req, res) => {
   }
 });
 
-// GET PROJECTS
+// ✅ GET PROJECTS — FIXED ✅
 app.get('/projects', async (req, res) => {
   try {
     const results = await withRetry(() =>
       notion.databases.query({
         database_id: process.env.PROJECTS_DB,
-        sorts: [{ property: 'Created', direction: 'descending' }],
+        sorts: [
+          {
+            timestamp: 'created_time', // ✅ FIXED: Replaces invalid 'Created' property
+            direction: 'descending',
+          },
+        ],
       })
     );
     res.json(results.results);
@@ -87,7 +93,7 @@ app.get('/projects', async (req, res) => {
   }
 });
 
-// Server startup
+// ✅ Startup
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`✅ MAFK API running on port ${PORT}`);
