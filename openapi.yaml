@@ -1,0 +1,517 @@
+openapi: 3.1.0
+info:
+  title: "MAFK Notion API"
+  version: "3.8"
+
+servers:
+  - url: "https://mafk-notion-api.onrender.com"
+
+paths:
+  /projects:
+    get:
+      summary: "List all projects"
+      operationId: getProjects
+      responses:
+        "200":
+          description: "Returns a list of all projects"
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Project'
+
+    post:
+      summary: "Create a new project with moodboard and ritual blocks"
+      operationId: createProject
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                status:
+                  type: string
+                description:
+                  type: string
+                client:
+                  type: string
+      responses:
+        "200":
+          description: "Project created"
+
+  /projects/{id}:
+    patch:
+      summary: "Update project metadata"
+      operationId: updateProject
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                deadline:
+                  type: string
+                  format: date
+                url:
+                  type: string
+                  format: uri
+                owner:
+                  type: string
+                description:
+                  type: string
+                client:
+                  type: string
+      responses:
+        "200":
+          description: "Project updated"
+
+  /projects/{id}/generate-sprint-from-goal:
+    post:
+      summary: "Generate sprint tasks from a creative goal using GPT"
+      operationId: generateSprintFromGoal
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [goal]
+              properties:
+                goal:
+                  type: string
+      responses:
+        "200":
+          description: "Sprint tasks generated and injected"
+
+  /projects/{id}/sprint:
+    post:
+      summary: "Create a sprint with tasks, brief, and auto-categorization"
+      operationId: createSprint
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tasks]
+              properties:
+                tasks:
+                  type: array
+                  items:
+                    type: string
+                days:
+                  type: integer
+                startDate:
+                  type: string
+                  format: date
+      responses:
+        "200":
+          description: "Sprint created"
+
+  /projects/{id}/daily-reflection:
+    post:
+      summary: "Insert a reflection toggle with open + overdue task stats"
+      operationId: insertDailyReflection
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: "Reflection block created"
+
+  /pages/{id}/caption-images:
+    post:
+      summary: "Caption all image blocks in a page using GPT"
+      operationId: captionImages
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: "Image captions added"
+
+  /projects/{id}/embed-summary:
+    post:
+      summary: "Embed a project summary block"
+      operationId: embedProjectSummary
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                summary:
+                  type: string
+                goals:
+                  type: string
+                ideas:
+                  type: string
+      responses:
+        "200":
+          description: "Summary embedded"
+
+  /projects/{id}/embed-dashboard:
+    post:
+      summary: "Embed full creative dashboard"
+      operationId: embedProjectDashboard
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                summary:
+                  type: string
+                goals:
+                  type: string
+                ideas:
+                  type: string
+                planning:
+                  type: string
+                rituals:
+                  type: string
+                prompts:
+                  type: string
+      responses:
+        "200":
+          description: "Dashboard embedded"
+
+  /projects/{id}/embed-moodboard:
+    post:
+      summary: "Embed moodboard block with visuals"
+      operationId: embedMoodboard
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                description:
+                  type: string
+                visuals:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      img:
+                        type: string
+      responses:
+        "200":
+          description: "Moodboard embedded"
+
+  /projects/{id}/clean-blocks:
+    post:
+      summary: "Detect duplicate toggle blocks"
+      operationId: cleanProjectBlocks
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: "Duplicates listed"
+
+  /projects/{id}/visual-references:
+    get:
+      summary: "Get all visual references linked to a project"
+      operationId: getProjectVisuals
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: "Visuals returned"
+
+  /tasks:
+    get:
+      summary: "List all tasks"
+      operationId: getTasks
+      responses:
+        "200":
+          description: "Returns all tasks"
+    post:
+      summary: "Create a new task with project link"
+      operationId: createTask
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, projectId]
+              properties:
+                name:
+                  type: string
+                projectId:
+                  type: string
+                status:
+                  type: string
+                priority:
+                  type: string
+                due:
+                  type: string
+                  format: date
+                assignee:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        "200":
+          description: "Task created"
+
+  /tasks/{id}:
+    patch:
+      summary: "Update full task metadata"
+      operationId: updateTask
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                status:
+                  type: string
+                priority:
+                  type: string
+                due:
+                  type: string
+                  format: date
+                assignee:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        "200":
+          description: "Task updated"
+
+  /tasks/{id}/status:
+    patch:
+      summary: "Update task status only"
+      operationId: updateTaskStatus
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+      responses:
+        "200":
+          description: "Status updated"
+
+  /tasks/{id}/brief:
+    post:
+      summary: "Embed creative brief into task"
+      operationId: embedTaskBrief
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [brief]
+              properties:
+                brief:
+                  type: string
+      responses:
+        "200":
+          description: "Brief embedded"
+
+  /tasks/this-week:
+    get:
+      summary: "List tasks due this week"
+      operationId: getTasksThisWeek
+      responses:
+        "200":
+          description: "This week’s tasks returned"
+
+  /tasks/overdue:
+    get:
+      summary: "List overdue tasks"
+      operationId: getTasksOverdue
+      responses:
+        "200":
+          description: "Overdue tasks returned"
+
+  /pages/{id}:
+    delete:
+      summary: "Archive a Notion page"
+      operationId: archivePage
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: "Page archived"
+
+  /visuals/{id}/tag-project:
+    post:
+      summary: "Tag a visual reference to a project"
+      operationId: tagVisualToProject
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [projectId]
+              properties:
+                projectId:
+                  type: string
+                tags:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        "200":
+          description: "Visual tagged"
+
+components:
+  schemas:
+    Project:
+      type: object
+      properties:
+        id:
+          type: string
+        url:
+          type: string
+          format: uri
+        created_time:
+          type: string
+          format: date-time
+        last_edited_time:
+          type: string
+          format: date-time
+        properties:
+          type: object
+          properties:
+            Project name:
+              type: object
+              properties:
+                title:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      plain_text:
+                        type: string
+            Status:
+              type: object
+              properties:
+                status:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+            Description:
+              type: object
+              properties:
+                rich_text:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      plain_text:
+                        type: string
+            Owner:
+              type: object
+              properties:
+                people:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                      person:
+                        type: object
+                        properties:
+                          email:
+                            type: string
+                            format: email
