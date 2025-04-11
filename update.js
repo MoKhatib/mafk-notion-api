@@ -1,101 +1,82 @@
-const { notion, withRetry } = require('./notion');
+// update.js
+const express = require("express");
+const router = express.Router();
+const { Client } = require("@notionhq/client");
+const withRetry = require("./utils").withRetry;
+require("dotenv").config();
 
-// ✅ Update Project Metadata
-async function updateProject(projectId, updates) {
-  const properties = {};
+const notion = new Client({ auth: process.env.NOTION_TOKEN });
 
-  if (updates.description) {
-    properties.Description = {
-      rich_text: [{ text: { content: updates.description } }]
-    };
+router.patch("/projects/:id", async (req, res) => {
+  const { id } = req.params;
+  const {
+    status,
+    deadline,
+    url,
+    owner,
+    description,
+    client
+  } = req.body;
+
+  try {
+    // Build the update payload dynamically based on input
+    const properties = {};
+
+    if (status) {
+      properties["Status"] = {
+        status: {
+          name: status
+        }
+      };
+    }
+
+    if (deadline) {
+      properties["Deadline"] = {
+        date: {
+          start: deadline
+        }
+      };
+    }
+
+    if (url) {
+      properties["URL"] = {
+        url: url
+      };
+    }
+
+    if (owner) {
+      properties["Owner"] = {
+        people: [{ id: owner }]
+      };
+    }
+
+    if (description) {
+      properties["Description"] = {
+        rich_text: [{ text: { content: description } }]
+      };
+    }
+
+    if (client) {
+      properties["Client"] = {
+        multi_select: [{ name: client }]
+      };
+    }
+
+    const response = await withRetry(() =>
+      notion.pages.update({
+        page_id: id,
+        properties
+      })
+    );
+
+    res.status(200).json({
+      message: "✅ Project updated successfully",
+      updated: response.properties
+    });
+  } catch (error) {
+    console.error("❌ Failed to update project:", error.message);
+    res.status(500).json({ error: "Failed to update project", detail: error.message });
   }
+});
 
-  if (updates.status) {
-    properties.Status = { status: { name: updates.status } };
-  }
-
-  if (updates.deadline) {
-    properties.Deadline = {
-      date: { start: updates.deadline }
-    };
-  }
-
-  if (updates.url) {
-    properties.URL = { url: updates.url };
-  }
-
-  if (updates.owner) {
-    properties.Owner = {
-      people: [{ id: updates.owner }]
-    };
-  }
-
-  if (updates.client) {
-    properties.Client = {
-      select: { name: updates.client }
-    };
-  }
-
-  return await withRetry(() =>
-    notion.pages.update({
-      page_id: projectId,
-      properties
-    })
-  );
-}
-
-// ✅ Update Full Task Metadata
-async function updateTask(taskId, updates) {
-  const properties = {};
-
-  if (updates.name) {
-    properties['Task name'] = {
-      title: [{ text: { content: updates.name } }]
-    };
-  }
-
-  if (updates.status) {
-    properties.Status = { status: { name: updates.status } };
-  }
-
-  if (updates.priority) {
-    properties.Priority = { select: { name: updates.priority } };
-  }
-
-  if (updates.due) {
-    properties.Due = {
-      date: { start: updates.due }
-    };
-  }
-
-  if (updates.assignee && updates.assignee.length > 0) {
-    properties.Assignee = {
-      people: updates.assignee.map(id => ({ id }))
-    };
-  }
-
-  return await withRetry(() =>
-    notion.pages.update({
-      page_id: taskId,
-      properties
-    })
-  );
-}
-
-// ✅ Update Task Status Only
-async function updateTaskStatus(taskId, status) {
-  return await withRetry(() =>
-    notion.pages.update({
-      page_id: taskId,
-      properties: {
-        Status: { status: { name: status } }
-      }
-    })
-  );
-}
-
-module.exports = {
-  updateProject,
-  updateTask,
-  updateTaskStatus
-};
+module.exports = router;

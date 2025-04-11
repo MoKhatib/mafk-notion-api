@@ -1,100 +1,73 @@
-require('dotenv').config();
-const express = require('express');
-const { Client } = require('@notionhq/client');
+import express from "express";
+import dotenv from "dotenv";
+import cors from "cors";
+import { Client } from "@notionhq/client";
+import withRetry from "./utils/withRetry.js";
+
+dotenv.config();
+
 const app = express();
+app.use(cors());
 app.use(express.json());
 
 const notion = new Client({ auth: process.env.NOTION_TOKEN });
 
-// 🔁 Retry Wrapper
-async function withRetry(fn, retries = 3) {
-  let lastError;
-  for (let i = 0; i < retries; i++) {
-    try {
-      return await fn();
-    } catch (err) {
-      lastError = err;
-    }
-  }
-  throw lastError;
-}
+const {
+  PROJECTS_DB,
+  DEFAULT_OWNER_ID,
+} = process.env;
 
-// ✅ CREATE PROJECT
-app.post('/projects', async (req, res) => {
-  const { name, status, description, client } = req.body;
+// Helper to build Notion person object
+const asPeople = (userId) => [{
+  object: "user",
+  id: userId,
+}];
 
-  if (!name) return res.status(400).json({ error: 'Project name required' });
-
+app.post("/projects", async (req, res) => {
   try {
+    const { name, status, description, client } = req.body;
+
+    if (!name) {
+      return res.status(400).json({ error: "Missing required field: name" });
+    }
+
     const response = await withRetry(() =>
       notion.pages.create({
-        parent: { database_id: process.env.PROJECTS_DB },
+        parent: { database_id: PROJECTS_DB },
         properties: {
           Name: {
-            title: [{ text: { content: name } }],
+            title: [{ type: "text", text: { content: name } }],
           },
           Status: {
-            select: {
-              name: status || 'Planning',
-            },
+            select: { name: status || "Planning" },
           },
-          Description: {
-            rich_text: [
-              {
-                type: 'text',
-                text: {
-                  content: description || 'Visual R&D stream for ACB explorations',
-                },
-              },
-            ],
-          },
+          Description: description
+            ? {
+                rich_text: [{ type: "text", text: { content: description } }],
+              }
+            : undefined,
           Client: {
-            select: {
-              name: client || 'Unassigned',
-            },
+            select: { name: client || "Unassigned" },
           },
           Owner: {
-            people: [
-              {
-                object: 'user',
-                id: process.env.DEFAULT_OWNER_ID,
-              },
-            ],
+            people: asPeople(DEFAULT_OWNER_ID),
           },
         },
       })
     );
 
-    res.status(200).json({ message: 'Project created', data: response });
-  } catch (error) {
-    console.error('Notion create project error:', error.body || error);
-    res.status(500).json({ error: 'Failed to create project', details: error.body || error });
-  }
-});
-
-// ✅ GET PROJECTS — FIXED ✅
-app.get('/projects', async (req, res) => {
-  try {
-    const results = await withRetry(() =>
-      notion.databases.query({
-        database_id: process.env.PROJECTS_DB,
-        sorts: [
-          {
-            timestamp: 'created_time', // ✅ FIXED: Replaces invalid 'Created' property
-            direction: 'descending',
-          },
-        ],
-      })
-    );
-    res.json(results.results);
+    res.status(200).json({ message: "Project created", data: response });
   } catch (err) {
-    console.error('Error fetching projects:', err.body || err);
-    res.status(500).json({ error: 'Failed to fetch projects' });
+    console.error("Error creating project:", err.message);
+    res.status(500).json({ error: err.message });
   }
 });
 
-// ✅ Startup
+app.get("/", (req, res) => {
+  res.send("MAFK API is alive.");
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`✅ MAFK API running on port ${PORT}`);
+  console.log(`MAFK API listening on port ${PORT}`);
 });

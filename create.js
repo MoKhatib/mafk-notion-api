@@ -1,106 +1,58 @@
-const { notion, PROJECTS_DB, TASKS_DB, MOODBOARD_TEMPLATE, withRetry } = require('./notion');
-const { adoptTemplate } = require('./adopt'); // ✅ NEW: Ritual injection engine
+// create.js
+const express = require("express");
+const router = express.Router();
+const { Client } = require("@notionhq/client");
+const withRetry = require("./utils").withRetry;
+require("dotenv").config();
 
-// ✅ Replace with your Notion ID
-const DEFAULT_OWNER_ID = 'your-notion-user-id-here';
+const notion = new Client({ auth: process.env.NOTION_TOKEN });
+const databaseId = process.env.PROJECTS_DB_ID;
+const defaultOwner = process.env.DEFAULT_OWNER_ID;
 
-// ✅ Create a new project and embed mood board + ritual template
-async function createProject(name, status = 'Planning', description = '', client = 'Unassigned') {
-  const newPage = await withRetry(() =>
-    notion.pages.create({
-      parent: { database_id: PROJECTS_DB },
-      properties: {
-        'Project name': { title: [{ text: { content: name } }] },
-        Status: { status: { name: status } },
-        Description: { rich_text: [{ text: { content: description } }] },
-        Client: { select: { name: client || 'Unassigned' } },
-        Owner: { people: [{ id: DEFAULT_OWNER_ID }] }
-      }
-    })
-  );
-
-  // ✅ Embed moodboard toggle
+router.post("/projects", async (req, res) => {
   try {
-    await notion.blocks.children.append({
-      block_id: newPage.id,
-      children: [
-        {
-          object: 'block',
-          type: 'toggle',
-          toggle: {
-            rich_text: [
-              { type: 'text', text: { content: `🖼️ Mood Board: ${name}` } }
-            ],
-            children: [
-              {
-                object: 'block',
-                type: 'link_to_page',
-                link_to_page: {
-                  type: 'page_id',
-                  page_id: MOODBOARD_TEMPLATE
-                }
-              },
-              {
-                object: 'block',
-                type: 'paragraph',
-                paragraph: {
-                  rich_text: [
-                    {
-                      type: 'text',
-                      text: {
-                        content: 'Drag images into this Mood Board to collect inspiration. You can duplicate it if you’d like a custom version.'
-                      }
-                    }
-                  ]
-                }
-              }
-            ]
+    const { name, description, status, client } = req.body;
+
+    if (!name) {
+      return res.status(400).json({ error: "Project name is required" });
+    }
+
+    const response = await withRetry(() =>
+      notion.pages.create({
+        parent: { database_id: databaseId },
+        properties: {
+          "Project name": {
+            title: [{ text: { content: name } }]
+          },
+          "Status": {
+            status: {
+              name: status || "Planning"
+            }
+          },
+          "Client": {
+            multi_select: client ? [{ name: client }] : []
+          },
+          "Description": {
+            rich_text: description
+              ? [{ text: { content: description } }]
+              : []
+          },
+          "Owner": {
+            people: [{ id: defaultOwner }]
           }
         }
-      ]
+      })
+    );
+
+    res.status(200).json({
+      message: "✅ Project created successfully",
+      projectId: response.id,
+      url: response.url
     });
-  } catch (err) {
-    console.error('❌ Failed to embed mood board toggle:', err.message);
+  } catch (error) {
+    console.error("❌ Error creating project:", error.message);
+    res.status(500).json({ error: "Failed to create project", detail: error.message });
   }
+});
 
-  // ✅ Inject the full template (summary, goals, pillars, rituals)
-  try {
-    await adoptTemplate(newPage.id);
-  } catch (err) {
-    console.error('❌ Failed to inject default template:', err.message);
-  }
-
-  return newPage;
-}
-
-// ✅ Create a task under a project
-async function createTask(name, projectId, status = 'Not Started', assignee = [], priority = 'Medium', due = null) {
-  const taskProps = {
-    'Task name': { title: [{ text: { content: name } }] },
-    Status: { status: { name: status } },
-    Project: { relation: [{ id: projectId }] },
-    Priority: { select: { name: priority } }
-  };
-
-  if (assignee.length) {
-    taskProps.Assignee = {
-      people: assignee.map(id => ({ id }))
-    };
-  }
-
-  if (due) {
-    taskProps.Due = { date: { start: due } };
-  }
-
-  return await withRetry(() =>
-    notion.pages.create({
-      parent: { database_id: TASKS_DB },
-      properties: taskProps
-    })
-  );
-}
-
-module.exports = {
-  createProject,
-  createTask
-};
+module.exports = router;

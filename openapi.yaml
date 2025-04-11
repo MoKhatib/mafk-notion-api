@@ -1,12 +1,13 @@
 openapi: 3.1.0
 info:
   title: "MAFK Notion API"
-  version: "3.8"
+  version: "4.0"
 
 servers:
   - url: "https://mafk-notion-api.onrender.com"
 
 paths:
+
   /projects:
     get:
       summary: "List all projects"
@@ -22,7 +23,7 @@ paths:
                   $ref: '#/components/schemas/Project'
 
     post:
-      summary: "Create a new project with moodboard and ritual blocks"
+      summary: "Create a new Notion project"
       operationId: createProject
       requestBody:
         required: true
@@ -30,16 +31,23 @@ paths:
           application/json:
             schema:
               type: object
-              required: [name]
+              required: [Project name, Status]
               properties:
-                name:
+                Project name:
                   type: string
-                status:
+                Status:
                   type: string
-                description:
+                Client:
+                  type: array
+                  items:
+                    type: string
+                Description:
                   type: string
-                client:
+                Owner:
                   type: string
+                Deadline:
+                  type: string
+                  format: date
       responses:
         "200":
           description: "Project created"
@@ -60,20 +68,19 @@ paths:
             schema:
               type: object
               properties:
-                status:
+                Status:
                   type: string
-                deadline:
+                Deadline:
                   type: string
                   format: date
-                url:
+                Description:
                   type: string
-                  format: uri
-                owner:
+                Owner:
                   type: string
-                description:
-                  type: string
-                client:
-                  type: string
+                Client:
+                  type: array
+                  items:
+                    type: string
       responses:
         "200":
           description: "Project updated"
@@ -285,8 +292,9 @@ paths:
       responses:
         "200":
           description: "Returns all tasks"
+
     post:
-      summary: "Create a new task with project link"
+      summary: "Create a new task"
       operationId: createTask
       requestBody:
         required: true
@@ -294,23 +302,21 @@ paths:
           application/json:
             schema:
               type: object
-              required: [name, projectId]
+              required: [Task name, Project]
               properties:
-                name:
+                Task name:
                   type: string
-                projectId:
+                Status:
                   type: string
-                status:
+                Assignee:
                   type: string
-                priority:
-                  type: string
-                due:
+                Due:
                   type: string
                   format: date
-                assignee:
-                  type: array
-                  items:
-                    type: string
+                Priority:
+                  type: string
+                Project:
+                  type: string
       responses:
         "200":
           description: "Task created"
@@ -331,19 +337,17 @@ paths:
             schema:
               type: object
               properties:
-                name:
+                Task name:
                   type: string
-                status:
+                Status:
                   type: string
-                priority:
+                Priority:
                   type: string
-                due:
+                Due:
                   type: string
                   format: date
-                assignee:
-                  type: array
-                  items:
-                    type: string
+                Assignee:
+                  type: string
       responses:
         "200":
           description: "Task updated"
@@ -364,9 +368,9 @@ paths:
           application/json:
             schema:
               type: object
-              required: [status]
+              required: [Status]
               properties:
-                status:
+                Status:
                   type: string
       responses:
         "200":
