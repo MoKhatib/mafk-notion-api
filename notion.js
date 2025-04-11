@@ -1,36 +1,97 @@
-require('dotenv').config();
 const { Client } = require('@notionhq/client');
+require('dotenv').config();
 
-// ✅ Initialize Notion Client
 const notion = new Client({ auth: process.env.NOTION_TOKEN });
+const databaseId = process.env.PROJECTS_DB;
+const defaultOwnerId = process.env.DEFAULT_OWNER_ID;
 
-// ✅ Pull config from environment
-const PROJECTS_DB = process.env.PROJECTS_DB;
-const TASKS_DB = process.env.TASKS_DB;
-const VISUAL_DB = process.env.VISUAL_DB;
-const MOODBOARD_TEMPLATE = process.env.MOODBOARD_TEMPLATE;
-const DEFAULT_OWNER_ID = process.env.DEFAULT_OWNER_ID;
-
-// 🔁 Global retry wrapper for all Notion calls
-async function withRetry(fn, attempts = 2, delay = 1000) {
-  for (let i = 0; i < attempts; i++) {
-    try {
-      return await fn();
-    } catch (error) {
-      if (i === attempts - 1) throw error;
-      console.warn(`Retry attempt ${i + 1} failed: ${error.message}`);
-      await new Promise(res => setTimeout(res, delay));
-    }
-  }
+// Get all projects
+async function getAllProjects() {
+  const response = await notion.databases.query({
+    database_id: databaseId,
+  });
+  return response.results;
 }
 
-// ✅ Export Notion + constants
+// Create a new project
+async function createProject({ name, status, description, client }) {
+  const response = await notion.pages.create({
+    parent: { database_id: databaseId },
+    properties: {
+      'Project name': {
+        title: [
+          {
+            text: {
+              content: name,
+            },
+          },
+        ],
+      },
+      'Status': {
+        status: {
+          name: status,
+        },
+      },
+      'Description': {
+        rich_text: [
+          {
+            text: {
+              content: description,
+            },
+          },
+        ],
+      },
+      'Client': {
+        multi_select: [
+          {
+            name: client,
+          },
+        ],
+      },
+      'Owner': {
+        people: [
+          {
+            id: defaultOwnerId,
+          },
+        ],
+      },
+    },
+  });
+
+  return response;
+}
+
+// Embed dashboard properties into an existing project page
+async function embedDashboard(projectId, { summary, goals, ideas, planning, rituals, prompts }) {
+  const response = await notion.pages.update({
+    page_id: projectId,
+    properties: {
+      'Summary': {
+        rich_text: [{ text: { content: summary } }],
+      },
+      'Goals': {
+        rich_text: [{ text: { content: goals } }],
+      },
+      'Ideas': {
+        rich_text: [{ text: { content: ideas } }],
+      },
+      'Planning': {
+        rich_text: [{ text: { content: planning } }],
+      },
+      'Rituals': {
+        rich_text: [{ text: { content: rituals } }],
+      },
+      'Prompts': {
+        rich_text: [{ text: { content: prompts } }],
+      },
+    },
+  });
+
+  return response;
+}
+
 module.exports = {
-  notion,
-  withRetry,
-  PROJECTS_DB,
-  TASKS_DB,
-  VISUAL_DB,
-  MOODBOARD_TEMPLATE,
-  DEFAULT_OWNER_ID
+  getAllProjects,
+  createProject,
+  embedDashboard,
 };

@@ -1,18 +1,22 @@
 const express = require('express');
-const bodyParser = require('body-parser');
-require('dotenv').config();
+const dotenv = require('dotenv');
+const cors = require('cors');
+const routes = require('./routes');
+
+// Load environment variables from .env file
+dotenv.config();
 
 const app = express();
-const port = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3000;
 
-// ✅ Parse JSON body payloads
-app.use(bodyParser.json());
+// Middleware to parse JSON and allow CORS
+app.use(cors());
+app.use(express.json());
 
-// ✅ Load API routes (projects, tasks, status)
-const routes = require('./routes');
+// Mount routes
 app.use('/', routes);
 
-// ✅ Server is live
-app.listen(port, () => {
-  console.log(`🚀 MAFK API running at http://localhost:${port}`);
+// Start server
+app.listen(PORT, () => {
+  console.log(`🚀 MAFK API running at http://localhost:${PORT}`);
 });
