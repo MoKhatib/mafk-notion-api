@@ -1,8 +1,9 @@
+// server.js
 import express from "express";
 import dotenv from "dotenv";
 import cors from "cors";
 import { Client } from "@notionhq/client";
-import withRetry from "./utils/withRetry.js"; // ✅ Only import once
+import { withRetry } from "./utils/withRetry.js"; // ✅ Correct ESM import
 
 dotenv.config();
 
@@ -17,7 +18,7 @@ const {
   DEFAULT_OWNER_ID,
 } = process.env;
 
-// Helper: Wrap user ID in Notion format
+// 🔧 Helper: Wrap Notion user ID
 const asPeople = (userId) => [
   {
     object: "user",
@@ -25,13 +26,20 @@ const asPeople = (userId) => [
   },
 ];
 
-// ✅ POST /projects → Create a new Notion project
+// ✅ POST /projects → Create a project
 app.post("/projects", async (req, res) => {
   try {
-    const { name, status, description, client } = req.body;
+    const {
+      "Project name": projectName,
+      Status,
+      Description,
+      Client,
+      Owner,
+      Deadline,
+    } = req.body;
 
-    if (!name) {
-      return res.status(400).json({ error: "Missing required field: name" });
+    if (!projectName || !Status) {
+      return res.status(400).json({ error: "Missing required fields: Project name and Status" });
     }
 
     const response = await withRetry(() =>
@@ -39,34 +47,41 @@ app.post("/projects", async (req, res) => {
         parent: { database_id: PROJECTS_DB },
         properties: {
           "Project name": {
-            title: [{ type: "text", text: { content: name } }],
+            title: [{ type: "text", text: { content: projectName } }],
           },
           Status: {
-            status: { name: status || "Planning" },
+            status: { name: Status },
           },
-          Description: description
+          Description: Description
             ? {
-                rich_text: [{ type: "text", text: { content: description } }],
+                rich_text: [{ type: "text", text: { content: Description } }],
               }
             : undefined,
           Client: {
-            multi_select: [{ name: client || "Unassigned" }],
+            multi_select: Client && Client.length
+              ? Client.map((tag) => ({ name: tag }))
+              : [{ name: "Unassigned" }],
           },
           Owner: {
-            people: asPeople(DEFAULT_OWNER_ID),
+            people: asPeople(Owner || DEFAULT_OWNER_ID),
           },
+          Deadline: Deadline
+            ? {
+                date: { start: Deadline },
+              }
+            : undefined,
         },
       })
     );
 
     res.status(200).json({ message: "Project created", data: response });
   } catch (err) {
-    console.error("Error creating project:", err.message);
+    console.error("❌ Error creating project:", err.message);
     res.status(500).json({ error: err.message });
   }
 });
 
-// ✅ Root test endpoint
+// ✅ Health check route
 app.get("/", (req, res) => {
   res.send("MAFK Notion API is running ⚙️");
 });
