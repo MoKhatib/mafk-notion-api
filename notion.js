@@ -1,18 +1,17 @@
+require('dotenv').config();
 const { Client } = require('@notionhq/client');
 
-// ✅ Initialize Notion client with secret token from .env
+// ✅ Initialize Notion Client
 const notion = new Client({ auth: process.env.NOTION_TOKEN });
 
-// ✅ Notion Database & Template IDs
-const PROJECTS_DB = '1cfdbda8f07f8113aa23d21d376676ec';
-const TASKS_DB = '1cfdbda8f07f81df844ec6976ba9ad93';
-const VISUAL_DB = '1d1dbda8f07f806eaf99ff83c4a87842';
-const MOODBOARD_TEMPLATE = '1cfdbda8f07f8027815ce64b448044f6';
+// ✅ Pull config from environment
+const PROJECTS_DB = process.env.PROJECTS_DB;
+const TASKS_DB = process.env.TASKS_DB;
+const VISUAL_DB = process.env.VISUAL_DB;
+const MOODBOARD_TEMPLATE = process.env.MOODBOARD_TEMPLATE;
+const DEFAULT_OWNER_ID = process.env.DEFAULT_OWNER_ID;
 
-// ✅ Default Notion User ID (replace with your actual ID)
-const DEFAULT_OWNER_ID = 'your-notion-user-id-here'; // ⬅️ Replace this
-
-// ✅ Global retry wrapper for Notion API calls
+// 🔁 Global retry wrapper for all Notion calls
 async function withRetry(fn, attempts = 2, delay = 1000) {
   for (let i = 0; i < attempts; i++) {
     try {
@@ -25,13 +24,13 @@ async function withRetry(fn, attempts = 2, delay = 1000) {
   }
 }
 
-// ✅ Export everything needed across the system
+// ✅ Export Notion + constants
 module.exports = {
   notion,
+  withRetry,
   PROJECTS_DB,
   TASKS_DB,
   VISUAL_DB,
   MOODBOARD_TEMPLATE,
-  DEFAULT_OWNER_ID,
-  withRetry
+  DEFAULT_OWNER_ID
 };

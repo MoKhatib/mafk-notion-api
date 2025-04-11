@@ -1,9 +1,10 @@
 const { notion, PROJECTS_DB, TASKS_DB, MOODBOARD_TEMPLATE, withRetry } = require('./notion');
+const { adoptTemplate } = require('./adopt'); // ✅ NEW: Ritual injection engine
 
-// ✅ Set this to your actual Notion User ID for auto-owner assignment
-const DEFAULT_OWNER_ID = 'your-notion-user-id-here'; // Replace with your Notion ID
+// ✅ Replace with your Notion ID
+const DEFAULT_OWNER_ID = 'your-notion-user-id-here';
 
-// ✅ Create a new project and embed mood board
+// ✅ Create a new project and embed mood board + ritual template
 async function createProject(name, status = 'Planning', description = '', client = 'Unassigned') {
   const newPage = await withRetry(() =>
     notion.pages.create({
@@ -18,7 +19,7 @@ async function createProject(name, status = 'Planning', description = '', client
     })
   );
 
-  // Embed the Mood Board toggle block with linked template and description
+  // ✅ Embed moodboard toggle
   try {
     await notion.blocks.children.append({
       block_id: newPage.id,
@@ -47,8 +48,7 @@ async function createProject(name, status = 'Planning', description = '', client
                     {
                       type: 'text',
                       text: {
-                        content:
-                          'Drag images into this Mood Board to collect inspiration. You can duplicate it if you’d like a custom version.'
+                        content: 'Drag images into this Mood Board to collect inspiration. You can duplicate it if you’d like a custom version.'
                       }
                     }
                   ]
@@ -61,6 +61,13 @@ async function createProject(name, status = 'Planning', description = '', client
     });
   } catch (err) {
     console.error('❌ Failed to embed mood board toggle:', err.message);
+  }
+
+  // ✅ Inject the full template (summary, goals, pillars, rituals)
+  try {
+    await adoptTemplate(newPage.id);
+  } catch (err) {
+    console.error('❌ Failed to inject default template:', err.message);
   }
 
   return newPage;
